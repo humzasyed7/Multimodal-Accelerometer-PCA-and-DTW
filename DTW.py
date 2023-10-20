@@ -1,37 +1,85 @@
 import numpy as np
+import pandas as pd
+import json
+import flaskserver
+import matplotlib.pyplot as plt
+import math
+from statistics import mean
+from sklearn.decomposition import PCA
+from scipy.spatial.distance import euclidean
+from dtw import dtw
+from fastdtw import fastdtw
 
-def distance(x,y):
-    return abs(x-y)
+s1_alldata = {
+    "accelerometer": [],
+    "gravity": [],
+    "gyroscope": [],
+    "orientation": [],
+    "magnetometer": [],
+    "barometer": [],
+    "location": [],
+    "microphone": [],
+    "pedometer": [],
+    "headphone": [],
+    "battery": [],
+    "brightness": [],
+    "network": [],
+}
 
-def dtwEA(stream1, stream2, threshold):
-    d = np.full((len(stream1),len(stream2)), np.inf)
-    for j in range(len(stream2)):
-        d[0][j] = distance(stream1[0], stream2[j])
-    for i in range(len(stream1)):
-        d[i][0] = distance(stream1[i], stream2[0])
-    for i in range(1,len(stream1)):
-        for j in range(1,len(stream2)):
-            cost = [d[i-1][j],d[i][j-1],d[i-1][j-1]]
-            cost = [i for i in cost if i != np.inf] 
-            if not cost:
-                continue
-            d[i][j] = distance(stream1[i],stream2[j]) + min(cost)
-            if d[i][j] > threshold:
-                d[i][j] = np.inf
+s2_alldata = {
+    "accelerometer": [],
+    "gravity": [],
+    "gyroscope": [],
+    "orientation": [],
+    "magnetometer": [],
+    "barometer": [],
+    "location": [],
+    "microphone": [],
+    "pedometer": [],
+    "headphone": [],
+    "battery": [],
+    "brightness": [],
+    "network": [],
+}
 
-    i, j = len(stream1)-1,len(stream2)-1
-    shortestPath = [d[i][j]]
-    while i != 0 and j !=0:
-        cost = [d[i-1][j],d[i][j-1],d[i-1][j-1]]
-        minP = min(cost)
-        if minP == cost[0]:
-            i -= 1
-        elif minP == cost[1]:
-            j -= 1
-        elif minP == cost[2]:
-            i -= 1
-            j -= 1
-        shortestPath.append(minP)
+#Read the raw data written to the CSV
+csv1 = pd.read_csv('10120316.csv')
+csv2 = pd.read_csv('19123034.csv')
 
-    distanceP = np.sum(shortestPath)/len(stream1)
-    return distanceP
+#Read the data from the CSV and store in dictionaries
+for label, series in csv1.iterrows():
+    all_data = json.loads(series['payload'].replace("'",'"'))#Converts Json obj to Py obj, contains list of objects which each contain multiple fields (names, values, etc.)
+    for data in all_data:
+        sensor_name = data['name']
+        if sensor_name in s1_alldata:
+            vals = list(data['values'].values())
+            s1_alldata[sensor_name].append(vals)
+
+for label, series in csv2.iterrows():
+    all_data = json.loads(series['payload'].replace("'",'"'))#Converts Json obj to Py obj, contains list of objects which each contain multiple fields (names, values, etc.)
+    for data in all_data:
+        sensor_name = data['name']
+        if sensor_name in s2_alldata:
+            vals = list(data['values'].values())
+            s2_alldata[sensor_name].append(vals)
+
+#Checks which sensors have data in both csv's
+s1_keys = set()
+s2_keys = set()
+for s1_key, s1_data in s1_alldata.copy().items():
+    if s1_data:
+        s1_keys.add(s1_key)#Stores the names of sensors that recorded data
+for s2_key, s2_data in s2_alldata.copy().items():
+    if s2_data:
+        s2_keys.add(s2_key)#Stores the names of sensors that recorded data
+mutual_sensors = s1_keys.intersection(s2_keys)
+
+#Implement DTW Algorithm on two time series streams from the same sensor
+for sensor in mutual_sensors:
+    #print(s1_alldata[sensor][:2])
+    #print(s2_alldata[sensor][:2])
+    distance, path = fastdtw(np.array(s1_alldata[sensor]), np.array(s2_alldata[sensor]), dist = euclidean)
+    print('The DTW Distance is: %s' %distance)
+
+
+

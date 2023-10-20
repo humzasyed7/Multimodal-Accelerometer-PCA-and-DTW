@@ -1,36 +1,36 @@
-from flask import Flask, request, jsonify
 import csv
-from datetime import datetime
 import socket
-app = Flask(__name__)
+from datetime import datetime
+from flask import Flask, request, jsonify
 
-data_buffer = []
-BATCH_size = 10
+app = Flask(__name__)
+buffer = []
 
 @app.route('/data', methods=['POST'])
 def receive_data():
-    global data_buffer
+    global buffer
     
-    data = request.json
-    data_buffer.append(data)
+    jsonData = request.json
+    buffer.append(jsonData)
 
-    #Buffer
-    if len(data_buffer) >= BATCH_size:
-        save_to_csv(data_buffer)
-        data_buffer.clear()
-    
+    # When the buffer exceeds 10, write data to csv and clear the buffer. Repeat until all the data is written to the csv
+    if len(buffer) >= 10:
+        save_to_csv(buffer)
+        buffer.clear()
     return jsonify(success = True), 200
 
-def save_to_csv(buffered_data):
-    filename = datetime.now().strftime('%d%H%M%S') + ".csv"
+def save_to_csv(buffer_subset):
+    path = datetime.now().strftime('%d%H%M%S') + ".csv" #Set =the file name based on the timestamp
 
-    with open(filename, 'w', newline='') as csvfile:
-        fieldnames = buffered_data[0].keys()
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    with open(path, 'w', newline='') as csvfile:
+        headers = buffer_subset[0].keys() # Use the keys from the jsonData as the headers
+        writer = csv.DictWriter(csvfile, fieldnames=headers)
         writer.writeheader()
-        for data in buffered_data:
-            writer.writerow(data)
+        # Write each row of the buffer_subset (10 json Data Points) into the csv
+        for row_data in buffer_subset:
+            writer.writerow(row_data)
 
+# Run the app! This will make the server go live and allow data to be sent from the Phone via SensLogger
 if __name__ == '__main__':
     app.run(host = socket.gethostname(), port = 9000, debug = True)
     
